@@ -26,13 +26,24 @@ void setup() {
 }
 
 void loop() {
-  // Red LEDs build up
-  blinkyDelay(RL1, 1000);
-  blinkyDelay(RL2, 1000);
-  blinkyDelay(RL3, 1000);
+  bool falseStart = false;
 
-  // Random wait then green on
-  displayDelay(random(0, 3001));
+  // Red LEDs build up (checking for false start the whole time)
+  falseStart |= blinkyDelay(RL1, 1000);
+  falseStart |= blinkyDelay(RL2, 1000);
+  falseStart |= blinkyDelay(RL3, 1000);
+
+  if (!falseStart) {
+    // Random wait then green on (still watching for false start)
+    falseStart = displayDelay(random(0, 3001));
+  }
+
+  if (falseStart) {
+    handleFalseStart();
+    delay(500);
+    return; // restart loop, skip the reaction test
+  }
+
   digitalWrite(GL, HIGH);
   long startTime = millis();
 
@@ -59,17 +70,46 @@ void loop() {
   delay(500);
 }
 
-void blinkyDelay(int pin, int duration) {
+// Returns true if a false start occurred during this LED's hold time
+bool blinkyDelay(int pin, int duration) {
   digitalWrite(pin, HIGH);
   long start = millis();
   while (millis() - start < duration) {
+    if (digitalRead(Button) == LOW) return true;
     sevseg.refreshDisplay();
   }
+  return false;
 }
 
-void displayDelay(long duration) {
+// Returns true if a false start occurred during the random wait
+bool displayDelay(long duration) {
   long start = millis();
   while (millis() - start < duration) {
+    if (digitalRead(Button) == LOW) return true;
     sevseg.refreshDisplay();
+  }
+  return false;
+}
+
+void handleFalseStart() {
+  // Turn off any lit LEDs first
+  digitalWrite(RL1, LOW);
+  digitalWrite(RL2, LOW);
+  digitalWrite(RL3, LOW);
+  digitalWrite(GL,  LOW);
+
+  // Flash all red LEDs fast
+  for (int i = 0; i < 6; i++) {
+    digitalWrite(RL1, HIGH);
+    digitalWrite(RL2, HIGH);
+    digitalWrite(RL3, HIGH);
+    unsigned long t = millis();
+    while (millis() - t < 100) sevseg.refreshDisplay();
+
+    digitalWrite(RL1, LOW);
+    digitalWrite(RL2, LOW);
+    digitalWrite(RL3, LOW);
+    t = millis();
+    while (millis() - t < 100) sevseg.refreshDisplay();
   }
 }
